@@ -1,4 +1,4 @@
-name: Claude PR Review
+name: Claude PR Review v2
 
 on:
   issue_comment:
