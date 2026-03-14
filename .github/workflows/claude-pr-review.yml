@@ -1,11 +1,12 @@
 name: Claude PR Review
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
+  issue_comment:
+    types: [created]
 
 jobs:
   claude-review:
+    if: contains(github.event.comment.body, '@claude')
     runs-on: ubuntu-latest
 
     permissions:
@@ -15,30 +16,10 @@ jobs:
       id-token: write
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Run Claude review
+      - name: Run Claude
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          direct_prompt: |
-            Revise este pull request.
-
-            Foque em:
-            - bugs reais
-            - problemas de segurança
-            - regressões
-            - tratamento de erro
-            - performance
-
-            Ignore:
-            - mudanças cosméticas
-            - formatação
-
-            Regras:
-            - responda em português
-            - cite arquivo e linha
-            - sugira correção quando possível
