@@ -19,7 +19,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Run Claude
+      - name: Claude review
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+
+          direct_prompt: |
+            Revise o Pull Request atual.
+
+            Analise:
+            - bugs
+            - riscos de runtime
+            - exceções não tratadas
+            - problemas de segurança
+            - problemas de performance
+
+            Comente diretamente no PR apontando problemas encontrados.
+            Responda em português.
