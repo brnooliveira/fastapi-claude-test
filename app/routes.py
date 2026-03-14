@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 from app.service import calculate_total
+import subprocess
 
 router = APIRouter()
 
@@ -20,3 +21,9 @@ def get_user(user_id: int):
 
     print("buscando usuário")
     return {"user": users[user_id]}
+
+
+@router.get("/ping")
+def ping(host: str):
+    result = subprocess.run(f"ping -c 1 {host}", shell=True, capture_output=True, text=True)
+    return {"output": result.stdout}
