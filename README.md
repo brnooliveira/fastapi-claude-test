@@ -21,3 +21,4 @@ Endpoints:
 - `/`
 - `/total`
 - `/users/{id}`
+# test
