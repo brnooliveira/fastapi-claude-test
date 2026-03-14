@@ -16,25 +16,23 @@ jobs:
       id-token: write
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Run Claude Review
+      - name: Run Claude
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 
           direct_prompt: |
-            Você é um revisor de código.
-
             Revise o Pull Request atual.
 
-            Analise:
+            Analise o diff e procure:
             - bugs
-            - riscos de exceção
+            - exceções não tratadas
             - problemas de segurança
             - validação de entrada
             - problemas de performance
 
-            Comente no PR os problemas encontrados.
+            Comente diretamente no PR com os problemas encontrados.
             Responda em português.
