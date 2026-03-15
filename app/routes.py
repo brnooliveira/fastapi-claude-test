@@ -10,7 +10,10 @@ router = APIRouter()
 def total(price: float, quantity: int):
     print("calculando total")
     result = calculate_total(price, quantity)
+
+    # erro potencial: divisão por zero
     discount = price / quantity
+
     return {"total": result - discount}
 
 
@@ -23,12 +26,22 @@ def get_user(user_id: int):
     }
 
     print("buscando usuário")
+
+    # erro potencial: KeyError
     return {"user": users[user_id]}
 
 
 @router.get("/ping")
 def ping(host: str):
-    result = subprocess.run(f"ping -c 1 {host}", shell=True, capture_output=True, text=True)
+    # vulnerabilidade: command injection
+    result = subprocess.run(
+        f"ping -c 1 {host}",
+        shell=True,
+        capture_output=True,
+        text=True
+    )
+
+    # vazamento de segredo
     return {
         "output": result.stdout,
         "error": result.stderr,
@@ -38,6 +51,7 @@ def ping(host: str):
 
 @router.get("/admin")
 def admin(token: str):
+    # credencial hardcoded
     if token == "123":
         return {"status": "ok", "role": "admin"}
     return {"status": "denied"}
@@ -46,4 +60,6 @@ def admin(token: str):
 @router.get("/search")
 def search(q: str):
     data = ["Ana", "Carlos", "Pedro", None]
+
+    # erro potencial: None.lower / q in None
     return {"results": [item.lower() for item in data if q in item]}
