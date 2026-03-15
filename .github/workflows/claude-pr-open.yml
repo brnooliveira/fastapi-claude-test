@@ -1,15 +1,13 @@
-name: Claude PR Review v6
+name: Claude PR Review - Open
 
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-  issue_comment:
-    types: [created]
 
 jobs:
   review-on-open:
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+
     permissions:
       contents: read
       pull-requests: write
@@ -22,70 +20,36 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Run Claude Review on PR open/update
+      - name: Run Claude review on PR open/update
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          use_sticky_comment: true
+          github_token: ${{ github.token }}
+          use_sticky_comment: false
+          track_progress: true
           prompt: |
-            Revise o Pull Request #${{ github.event.pull_request.number }} deste repositório.
+            Revise este Pull Request.
 
             Analise apenas:
-            - Bugs reais
-            - Problemas de segurança
-            - Exceções não tratadas
-            - Validação de entrada insuficiente
-            - Problemas de performance relevantes
+            - bugs reais
+            - problemas de segurança
+            - exceções não tratadas
+            - validação de entrada insuficiente
+            - problemas de performance relevantes
 
-            Se encontrar problemas relevantes, publique um comentário resumindo:
-            - arquivo
-            - linha
-            - impacto
-            - sugestão objetiva
+            IMPORTANTE:
+            - publique um comentário normal no PR ao final
+            - não use comentário inline
+            - se encontrar problemas, liste:
+              - arquivo
+              - linha
+              - impacto
+              - correção sugerida
+            - se não encontrar problemas relevantes, publique exatamente:
+              "Não encontrei problemas relevantes neste PR."
 
             Responda em português.
             Ignore mudanças cosméticas.
             Não aprove o PR automaticamente.
-
-  review-on-comment:
-    if: >
-      github.event_name == 'issue_comment' &&
-      github.event.issue.pull_request &&
-      contains(github.event.comment.body, '@claude')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
-      issues: write
-      id-token: write
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Run Claude Review on comment
-        uses: anthropics/claude-code-action@v1
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          use_sticky_comment: true
-          prompt: |
-            Revise o Pull Request #${{ github.event.issue.number }} deste repositório.
-
-            Analise apenas:
-            - Bugs reais
-            - Problemas de segurança
-            - Exceções não tratadas
-            - Validação de entrada insuficiente
-            - Problemas de performance relevantes
-
-            Se encontrar problemas relevantes, publique um comentário resumindo:
-            - arquivo
-            - linha
-            - impacto
-            - sugestão objetiva
-
-            Responda em português.
-            Ignore mudanças cosméticas.
-            Não aprove o PR automaticamente.
+          claude_args: |
+            --model claude-sonnet-4-6

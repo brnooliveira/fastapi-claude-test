@@ -6,9 +6,10 @@ on:
 
 jobs:
   review-on-comment:
-    if: ${{ github.event.issue.pull_request && contains(github.event.comment.body, '@claude') }}
+    if: >
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '@claude')
     runs-on: ubuntu-latest
-
     permissions:
       contents: read
       pull-requests: write
@@ -18,33 +19,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Run Claude Review
+      - name: Run Claude on @claude comment
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ github.token }}
-          model: claude-haiku-4-5-20251001
-          mode: agent
+          trigger_phrase: '@claude'
           use_sticky_comment: false
-          prompt: |
-            Revise este Pull Request e publique um comentário normal no PR.
-
-            Analise apenas:
-            - bugs reais
-            - problemas de segurança
-            - exceções não tratadas
-            - validação de entrada insuficiente
-            - problemas de performance relevantes
-
-            Se encontrar problemas, comente no PR com:
-            - arquivo
-            - linha
-            - impacto
-            - correção sugerida
-
-            Se não encontrar nada relevante, diga explicitamente:
-            "Não encontrei problemas relevantes neste PR."
-
-            Responda em português.
-            Ignore mudanças cosméticas.
+          track_progress: true
+          claude_args: |
+            --model claude-sonnet-4-6
