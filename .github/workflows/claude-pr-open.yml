@@ -1,10 +1,10 @@
-name: Claude PR Review v5
+name: Claude PR Review v6
 
 on:
-  issue_comment:
-    types: [created]
   pull_request:
     types: [opened, synchronize, reopened]
+  issue_comment:
+    types: [created]
 
 jobs:
   review-on-open:
@@ -15,76 +15,77 @@ jobs:
       pull-requests: write
       issues: write
       id-token: write
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Run Claude Review
+      - name: Run Claude Review on PR open/update
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
           use_sticky_comment: true
           prompt: |
             Revise o Pull Request #${{ github.event.pull_request.number }} deste repositório.
 
-            Passos:
-            1. Execute `gh pr diff ${{ github.event.pull_request.number }}` para obter as mudanças
-            2. Execute `gh pr view ${{ github.event.pull_request.number }} --json title,body,files` para contexto
-
-            Analise o código e reporte apenas:
+            Analise apenas:
             - Bugs reais
             - Problemas de segurança
             - Exceções não tratadas
             - Validação de entrada insuficiente
             - Problemas de performance relevantes
 
-            Regras:
-            - Responda em português
-            - Seja objetivo
-            - Cite arquivo e linha
-            - Ignore mudanças cosméticas
-            - Não aprove o PR automaticamente
+            Se encontrar problemas relevantes, publique um comentário resumindo:
+            - arquivo
+            - linha
+            - impacto
+            - sugestão objetiva
+
+            Responda em português.
+            Ignore mudanças cosméticas.
+            Não aprove o PR automaticamente.
 
   review-on-comment:
-    if: github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')
+    if: >
+      github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '@claude')
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
       issues: write
       id-token: write
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Run Claude Review
+      - name: Run Claude Review on comment
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
           use_sticky_comment: true
           prompt: |
             Revise o Pull Request #${{ github.event.issue.number }} deste repositório.
 
-            Passos:
-            1. Execute `gh pr diff ${{ github.event.issue.number }}` para obter as mudanças
-            2. Execute `gh pr view ${{ github.event.issue.number }} --json title,body,files` para contexto
-
-            Analise o código e reporte apenas:
+            Analise apenas:
             - Bugs reais
             - Problemas de segurança
             - Exceções não tratadas
             - Validação de entrada insuficiente
             - Problemas de performance relevantes
 
-            Regras:
-            - Responda em português
-            - Seja objetivo
-            - Cite arquivo e linha
-            - Ignore mudanças cosméticas
-            - Não aprove o PR automaticamente
+            Se encontrar problemas relevantes, publique um comentário resumindo:
+            - arquivo
+            - linha
+            - impacto
+            - sugestão objetiva
+
+            Responda em português.
+            Ignore mudanças cosméticas.
+            Não aprove o PR automaticamente.

@@ -1,0 +1,47 @@
+name: Claude PR Review - Comment
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  review-on-comment:
+    if: >
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '@claude')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Claude Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
+          model: claude-haiku-4-5-20251001
+          mode: agent
+          use_sticky_comment: true
+          prompt: |
+            O usuário pediu uma revisão manual deste Pull Request.
+
+            Analise apenas:
+            - bugs reais
+            - problemas de segurança
+            - exceções não tratadas
+            - validação de entrada insuficiente
+            - problemas de performance relevantes
+
+            Responda em português.
+            Seja objetivo.
+            Cite arquivo e linha quando possível.
+            Ignore mudanças cosméticas.
+            Não aprove o PR automaticamente.
