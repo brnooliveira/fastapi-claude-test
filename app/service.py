@@ -11,4 +11,4 @@ def calculate_total(price: float, quantity: int):
     if price < 0 or quantity < 0:
         total = None
 
-    return total + 10
+    return total + 1000
