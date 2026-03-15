@@ -8,7 +8,7 @@ jobs:
   review-on-comment:
     if: >
       github.event.issue.pull_request &&
-      contains(github.event.comment.body, '@claude')
+      contains(github.event.comment.body, '@claude review')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -17,18 +17,280 @@ jobs:
       id-token: write
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Run Claude on @claude comment
+      - name: Fetch PR branch
+        run: |
+          git fetch origin +refs/pull/${{ github.event.issue.number }}/head:pr-${{ github.event.issue.number }}
+          git checkout pr-${{ github.event.issue.number }}
+
+      - name: Run Claude on PR comment
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ github.token }}
-          trigger_phrase: '@claude'
+          trigger_phrase: '@claude review'
           use_sticky_comment: false
           track_progress: true
+          prompt: |
+            Você é um revisor de código sênior especializado neste projeto NestJS + Objection.js + Knex.js.
+
+            O usuário acionou uma revisão manual por comentário no Pull Request.
+
+            Considere o contexto do comentário abaixo e priorize qualquer foco específico solicitado nele, sem ignorar bugs, problemas de segurança, exceções não tratadas, validação insuficiente, problemas de performance relevantes e conformidade com os padrões do projeto.
+
+            Comentário do usuário:
+            ${{ github.event.comment.body }}
+
+            Analise este Pull Request com atenção máxima.
+
+            Revise o diff completo abaixo:
+            $(gh pr diff ${{ github.event.issue.number }})
+
+            ==================================================
+            PADRÕES OBRIGATÓRIOS DO PROJETO
+            ==================================================
+
+            [1] MIGRATIONS (Knex) — TABELAS
+
+            Nome do arquivo:
+            - YYYYMMDDHHMISS_create_table_{nome_tabela}.ts
+            - YYYYMMDDHHMISS_create_trigger_{nome_tabela}_{descricao}.ts
+
+            Estrutura obrigatória:
+            ```ts
+            import type { Knex } from 'knex';
+
+            export async function up(knex: Knex): Promise<void> {
+              await knex.raw(`...`);
+            }
+
+            export async function down(knex: Knex): Promise<void> {
+              await knex.raw(`DROP TABLE IF EXISTS nome_tabela;`);
+            }
+            ```
+
+            Regras:
+            - Todo SQL deve estar dentro de knex.raw()
+            - Nunca usar knex.schema.*
+            - O down deve desfazer simetricamente o que o up fez
+
+            Ordem obrigatória das colunas:
+            1. id UUID PRIMARY KEY DEFAULT gen_random_uuid()
+            2. tenant_id UUID NOT NULL REFERENCES tenants(id) ON UPDATE CASCADE
+            3. FKs de entidades de negócio
+            4. Colunas de negócio
+            5. created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            6. updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+
+            Tipos e tamanhos obrigatórios:
+            - UUIDs: UUID
+            - Status: VARCHAR(2) NOT NULL DEFAULT 'XX'
+            - CST: VARCHAR(3)
+            - CFOP: VARCHAR(4)
+            - Referências externas curtas: VARCHAR(20)
+            - Referências médias: VARCHAR(30)
+            - Chave de acesso NF-e/DFe: VARCHAR(44)
+            - Identificadores de dispositivo: VARCHAR(100)
+            - Descrições de item: VARCHAR(255)
+            - Textos livres: TEXT
+            - Monetário 2 casas: NUMERIC(15,2) NOT NULL DEFAULT 0
+            - Monetário 4 casas: NUMERIC(15,4) NOT NULL DEFAULT 0
+            - Fator de conversão: NUMERIC(20,6)
+            - Percentuais: NUMERIC(8,4)
+            - Timestamp obrigatório: TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            - Timestamp opcional: TIMESTAMPTZ
+            - Booleano: BOOLEAN NOT NULL DEFAULT FALSE
+
+            Regras de FK:
+            - Obrigatória: UUID NOT NULL REFERENCES tabela(id) ON UPDATE CASCADE
+            - Opcional: UUID REFERENCES tabela(id) ON UPDATE CASCADE
+            - ON DELETE CASCADE apenas em tabelas de detalhe
+            - Não usar ON DELETE CASCADE em tabelas principais
+            - Não usar ON DELETE SET NULL
+
+            Regras adicionais:
+            - Não usar CHECK constraints
+            - Validação deve ficar em trigger com RAISE EXCEPTION
+            - Defaults obrigatórios:
+              - PK: DEFAULT gen_random_uuid()
+              - timestamps: DEFAULT NOW()
+              - numéricos: DEFAULT 0
+              - booleanos: DEFAULT FALSE
+              - status: DEFAULT 'XX'
+              - fatores de conversão: DEFAULT 1
+
+            Índices:
+            - Criar sempre logo após CREATE TABLE
+            - Padrão: CREATE INDEX idx_{tabela}_{coluna} ON {tabela}({coluna})
+            - Único: CREATE UNIQUE INDEX unq_{tabela}_{coluna} ON {tabela}({coluna})
+            - Composto único: CREATE UNIQUE INDEX idx_{tabela}_{col1}_{col2} ON {tabela}(col1, col2)
+            - Toda FK deve ter índice correspondente
+            - Colunas de status e data_emissao geralmente também devem ser indexadas
+
+            ==================================================
+            [2] MIGRATIONS (Knex) — TRIGGERS E FUNÇÕES
+            ==================================================
+
+            Nome do arquivo:
+            - YYYYMMDDHHMISS_create_trigger_{tabela}_{descricao}.ts
+
+            Nome da função PostgreSQL:
+            - Prefixo obrigatório: trg_
+            - Padrão: trg_{entidade_singular}_{verbo_acao}()
+
+            Nome do trigger:
+            - Sem prefixo trg_
+            - Padrão: {verbo_acao}_{entidade} ou {verbo_acao}_{entidade}_{complemento}
+
+            Estrutura obrigatória:
+            - CREATE OR REPLACE FUNCTION ... antes do CREATE TRIGGER
+            - Ambos no mesmo knex.raw()
+
+            Regras:
+            - Sempre FOR EACH ROW
+            - Nunca FOR EACH STATEMENT
+            - BEFORE para validações e cálculos que alteram NEW.*
+            - AFTER para efeitos em outras tabelas
+            - Variáveis declaradas com prefixo v_
+            - Parâmetros de função utilitária com prefixo p_
+            - RAISE EXCEPTION sempre em português e com contexto
+            - Comparações com nullable usando IS DISTINCT FROM
+            - Cálculos com ROUND(...::NUMERIC, casas)
+            - SQL dinâmico com format() e %I
+            - SELECT INTO como padrão de captura
+            - FOR UPDATE quando houver update subsequente no mesmo registro
+            - EXISTS com SELECT EXISTS (...) INTO variavel
+            - Em loops de distribuição proporcional, ajustar o último item
+            - Em triggers com DELETE, usar:
+              RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+
+            Down obrigatório de trigger:
+            - DROP TRIGGER IF EXISTS nome_trigger ON tabela;
+            - DROP FUNCTION IF EXISTS trg_funcao();
+
+            ==================================================
+            [3] MODELS (Objection.js)
+            ==================================================
+
+            Regras obrigatórias:
+            - Não declarar FKs (_id) como propriedades TypeScript da classe
+            - Relações sempre tipadas corretamente
+            - Nunca usar any em relações
+            - BelongsToOneRelation deve usar modify: this.createModifierSelect([...])
+            - HasManyRelation não deve usar createModifierSelect
+            - queryWithRelations() deve existir para a entidade principal
+            - join deve usar caminho completo: tabela.coluna
+
+            Verifique especialmente:
+            - FK exposta como propriedade na classe → erro
+            - relação com any → erro
+            - BelongsToOne sem createModifierSelect → erro
+            - HasMany com createModifierSelect → erro
+            - ausência de queryWithRelations() → erro
+            - join incompleto → erro
+
+            ==================================================
+            [4] SERVICES
+            ==================================================
+
+            Regras obrigatórias:
+            - Decorado com @Injectable()
+            - Estender CrudService<Model> quando aplicável
+            - Regras de negócio em beforeSave(data, event) e beforeDelete()
+            - Validação com throw new BadRequestException('mensagem em português')
+            - Não encontrado com throw new NotFoundException(...)
+            - Transações no padrão startTransaction / commit / rollback / finally
+            - Métodos em camelCase e em português
+
+            ==================================================
+            [5] CONTROLLERS
+            ==================================================
+
+            Regras obrigatórias:
+            - @Controller('rota-kebab-case')
+            - @UseGuards(AuthGuard('jwt'))
+            - POST criar
+            - GET listar/buscar
+            - PUT :id atualizar
+            - DELETE :id remover
+            - Usuário via @Req() req: AnyObject e uso de req.user.id
+            - Sem lógica de negócio no controller
+            - Parâmetros e body corretamente decorados
+
+            ==================================================
+            [6] DTOS
+            ==================================================
+
+            Regras obrigatórias:
+            - Arquivos em dto/create-{entidade}.dto.ts e dto/update-{entidade}.dto.ts
+            - Campos obrigatórios com decorators de validação
+            - Campos opcionais com @IsOptional() antes dos demais decorators
+            - Objetos aninhados com @ValidateNested() e @Type(() => ClasseDTO)
+            - Referências externas com IDDto
+            - UpdateDTO deve estender PartialType(CreateXxxDto)
+
+            ==================================================
+            [7] REGRAS GERAIS
+            ==================================================
+
+            - TypeScript estrito: sem any desnecessário
+            - Usar AnyObject quando necessário
+            - Imports absolutos com prefixo src/
+            - Arquivos em kebab-case
+            - Classes em PascalCase
+            - Métodos e variáveis em camelCase
+            - Constantes em UPPER_SNAKE_CASE
+            - Usar async/await em operações de banco
+            - Não usar .then() encadeado
+            - Mensagens de erro em português
+            - Cada módulo deve manter controller + service + module no diretório da feature
+
+            ==================================================
+            O QUE ANALISAR EM CADA ARQUIVO MODIFICADO
+            ==================================================
+
+            Verifique:
+            - lógica incorreta
+            - condição invertida
+            - variável não inicializada
+            - operação assíncrona sem await
+            - race condition
+            - transação não fechada
+            - query N+1
+            - ausência de tratamento de erro onde necessário
+            - possível injeção SQL por concatenação
+            - descumprimento dos padrões acima
+            - migration sem down correto
+            - trigger criada antes da função
+            - falta de índice em FK nova
+            - controller com regra de negócio
+            - DTO sem validação adequada
+
+            ==================================================
+            FORMATO DA RESPOSTA
+            ==================================================
+
+            Responda em português.
+
+            Analise somente problemas relevantes. Ignore mudanças puramente cosméticas.
+
+            Para cada problema encontrado, use exatamente esta estrutura:
+
+            - Arquivo: caminho/do/arquivo
+            - Linha: número ou intervalo
+            - Severidade: 🔴 Crítico | 🟡 Aviso | 🔵 Sugestão
+            - Problema: descrição clara e objetiva
+            - Correção: como corrigir
+
+            Regras de saída:
+            - Publique um comentário normal no PR
+            - Não use comentário inline
+            - Não aprove o PR automaticamente
+            - Se não houver problemas relevantes, publique exatamente:
+              Não encontrei problemas relevantes neste PR.
           claude_args: |
             --model claude-sonnet-4-6
